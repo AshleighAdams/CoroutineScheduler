@@ -27,16 +27,16 @@ scheduler.SpawnTask(MyCoroutine);
 
 
 while (true)
-    scheduler.Resume();
+	scheduler.Resume();
 
 async Task MyCoroutine()
 {
-    int i = 0;
-    while (true)
-    {
-        Console.WriteLine($"Hello {i++}");
-        await scheduler.Yield();
-    }
+	int i = 0;
+	while (true)
+	{
+		Console.WriteLine($"Hello {i++}");
+		await scheduler.Yield();
+	}
 }
 ```
 
