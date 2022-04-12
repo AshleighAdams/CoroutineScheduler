@@ -7,6 +7,7 @@
     <RootNamespace>CoroutineScheduler</RootNamespace>
     <PackageTags>coroutine;task;scheduler</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <Description>Core interfaces for low allocation coroutines with tightly controlled concurrency</Description>
   </PropertyGroup>
 
   <ItemGroup>
