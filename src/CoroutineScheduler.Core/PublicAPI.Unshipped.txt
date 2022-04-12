@@ -1,0 +1,11 @@
+#nullable enable
+CoroutineScheduler.IScheduler
+CoroutineScheduler.IScheduler.SpawnTask(System.Func<System.Threading.Tasks.Task!>! func) -> System.Threading.Tasks.Task!
+CoroutineScheduler.IScheduler.Yield() -> CoroutineScheduler.YieldTask
+CoroutineScheduler.IYieldAwaiter
+CoroutineScheduler.IYieldAwaiter.GetResult() -> void
+CoroutineScheduler.IYieldAwaiter.IsCompleted.get -> bool
+CoroutineScheduler.YieldTask
+CoroutineScheduler.YieldTask.GetAwaiter() -> CoroutineScheduler.IYieldAwaiter!
+CoroutineScheduler.YieldTask.YieldTask() -> void
+CoroutineScheduler.YieldTask.YieldTask(CoroutineScheduler.IYieldAwaiter! awaiter) -> void

@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+defaults: *default-defaults
+
+jobs:
+  build:
+    name: 'Build & Release'
+    runs-on: ubuntu-latest
+    steps:
+    - *checkout
+    - *setup-dotnet5
+    - *setup-nuget
+
+    - name: Setup MinVer
+      run: |
+        git fetch --tags --force
+        git checkout "${GITHUB_REF#refs/*/}"
+        dotnet tool install --global minver-cli --version 2.5.0
+
+    - name: 'Verify Tag'
+      run: |
+        [[ "v$(minver --tag-prefix=v)" == "${GITHUB_REF#refs/*/}" ]] # error out if the versions don't match
+
+    - *restore
+    - *build
+    - *test
+    - *pack
+    - *upload-artifacts
+
+    - name: 'Create Release'
+      run: |
+        set -x
+        tag="${GITHUB_REF#refs/*/}"
+        options=()
+
+        options+=("-m" "") # leave the title and body unchanged
+
+        IFS=$'\n';
+        for asset in $(find ./artifacts -name "*.nupkg"); do
+          options+=("-a" "$asset")
+        done
+
+        hub release edit "${options[@]}" "$tag"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 'Publish Nuget'
+      run: |
+        dotnet nuget push 'artifacts/*.nupkg' -k ${NUGETORG_TOKEN} -s https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols 1
+        dotnet nuget push 'artifacts/*.nupkg' -k ${GITHUB_TOKEN} -s github --skip-duplicate --no-symbols 1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        NUGETORG_TOKEN: ${{ secrets.NUGETORG_TOKEN }}

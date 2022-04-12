@@ -1,0 +1,10 @@
+#nullable enable
+CoroutineScheduler.InternalReleaseException
+CoroutineScheduler.InternalReleaseException.InternalReleaseException(string! message) -> void
+CoroutineScheduler.InternalReleaseException.InternalReleaseException(string! message, System.Exception! innerException) -> void
+CoroutineScheduler.InternalReleaseException.InternalReleaseException(System.Runtime.Serialization.SerializationInfo! info, System.Runtime.Serialization.StreamingContext context) -> void
+CoroutineScheduler.Scheduler
+CoroutineScheduler.Scheduler.Resume() -> void
+CoroutineScheduler.Scheduler.Scheduler() -> void
+CoroutineScheduler.Scheduler.SpawnTask(System.Func<System.Threading.Tasks.Task!>! func) -> System.Threading.Tasks.Task!
+CoroutineScheduler.Scheduler.Yield() -> CoroutineScheduler.YieldTask

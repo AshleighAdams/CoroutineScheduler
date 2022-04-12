@@ -1,0 +1,63 @@
+name: CD
+
+on:
+  push:
+    branches:
+    - master
+    - support/*
+    paths-ignore:
+    - 'docs/**'
+    - 'README.md'
+    - '.editorconfig'
+    - '.gitattributes'
+    - '.gitignore'
+    - '.github/ISSUE_TEMPLATE/**'
+    - '.github/pull_request_template.md'
+
+defaults: *default-defaults
+
+jobs:
+  build-and-test:
+    name: 'Build & Test'
+    runs-on: ubuntu-latest
+    steps:
+    - *checkout
+    - *setup-dotnet5
+    - *restore
+    - *build
+    - *test
+    - *pack
+    - *publish-codecov
+    - *upload-artifacts
+  mutation-tests:
+    name: 'Mutation Test'
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+    - *checkout
+    - *setup-dotnet5
+    - *mutation-test
+    - *upload-artifacts
+  integration-tests:
+    name: 'Integration Tests'
+    needs: build-and-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+    - *checkout
+    - *setup-dotnet5
+    - *setup-dotnet3-1
+    - *run-integration-tests
+  publish:
+    name: 'Publish'
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    steps:
+    - *checkout
+    - *setup-dotnet5
+    - *setup-nuget
+    - *download-artifacts
+    - *publish-github
