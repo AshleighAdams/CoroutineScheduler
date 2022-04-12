@@ -1,0 +1,20 @@
+{
+	"stryker-config": {
+		"reporters": [
+			"progress",
+			"html"
+		],
+		"mutate": [
+			"!*Exception.cs"
+		],
+		"ignore-methods": [
+			"*.Assert",
+			"*HashCode",
+			"*Exception.ctor",
+			"First"
+		],
+		"thresholds": {
+			"break": 0
+		}
+	}
+}
