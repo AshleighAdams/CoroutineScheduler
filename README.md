@@ -13,11 +13,34 @@ Add the following to your `Directory.Build.props` or `csproj`:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="CoroutineScheduler" Version="x.y.z" PrivateAssets="All" />
+  <PackageReference Include="CoroutineScheduler" Version="x.y.z" />
 </ItemGroup>
 ```
 
-TODO: Write this with samples.
+```csharp
+using CoroutineScheduler;
+
+var scheduler = new Scheduler();
+
+// spawn a coroutine
+scheduler.SpawnTask(MyCoroutine);
+
+
+while (true)
+    scheduler.Resume();
+
+async Task MyCoroutine()
+{
+    int i = 0;
+    while (true)
+    {
+        Console.WriteLine($"Hello {i++}");
+        await scheduler.Yield();
+    }
+}
+```
+
+
 
 [coroutinescheduler-badge]: https://img.shields.io/nuget/v/CoroutineScheduler?label=CoroutineScheduler
 [coroutinescheduler-link]: https://www.nuget.org/packages/CoroutineScheduler

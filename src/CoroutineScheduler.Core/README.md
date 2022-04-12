@@ -1,8 +1,18 @@
 [![Codecov][codecov-badge]][codecov-link] [![Mutation testing score][mutation-testing-badge]][mutation-testing-link]
 
-Low allocation coroutines with tightly controlled concurrency.
+Core interfaces for spawning coroutines and yielding to a scheduler, no implementations contained within. 
 
-Core interface for spawning and yielding to a scheduler.
+## Usage
+
+```csharp
+namespace CoroutineScheduler;
+
+public interface IScheduler
+{
+	Task SpawnTask(Func<Task> func);
+	YieldTask Yield();
+}
+```
 
 ## Full readme
 

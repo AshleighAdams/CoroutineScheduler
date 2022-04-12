@@ -2,7 +2,38 @@
 
 Low allocation coroutines with tightly controlled concurrency.
 
-Core interface for spawning and yielding to a scheduler.
+## Usage
+
+Add the following to your `Directory.Build.props` or `csproj`:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="CoroutineScheduler" Version="x.y.z" />
+</ItemGroup>
+```
+
+```csharp
+using CoroutineScheduler;
+
+var scheduler = new Scheduler();
+
+// spawn a coroutine
+scheduler.SpawnTask(MyCoroutine);
+
+
+while (true)
+    scheduler.Resume();
+
+async Task MyCoroutine()
+{
+    int i = 0;
+    while (true)
+    {
+        Console.WriteLine($"Hello {i++}");
+        await scheduler.Yield();
+    }
+}
+```
 
 ## Full readme
 
