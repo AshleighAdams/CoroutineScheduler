@@ -22,7 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - *checkout
-    - *setup-dotnet5
+    - *setup-dotnet6
+    - *setup-verlite
     - *restore
     - *build
     - *test
@@ -35,29 +36,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - *checkout
-    - *setup-dotnet5
+    - *setup-dotnet6
+    - *setup-verlite
     - *mutation-test
     - *upload-artifacts
-  integration-tests:
-    name: 'Integration Tests'
-    needs: build-and-test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-    - *checkout
-    - *setup-dotnet5
-    - *setup-dotnet3-1
-    - *run-integration-tests
   publish:
     name: 'Publish'
-    needs: integration-tests
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
     - *checkout
-    - *setup-dotnet5
+    - *setup-dotnet6
     - *setup-nuget
     - *download-artifacts
     - *publish-github

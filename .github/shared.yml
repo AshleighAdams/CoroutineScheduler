@@ -10,17 +10,18 @@ definitions:
     with:
       fetch-depth: '0'
 
-  setup-dotnet5: &setup-dotnet5
-    name: Setup .NET 5
+  setup-dotnet6: &setup-dotnet6
+    name: Setup .NET 6
     uses: actions/setup-dotnet@v1
     with:
-      dotnet-version: 5.0.x
+      dotnet-version: 6.0.x
 
-  setup-dotnet3-1: &setup-dotnet3-1
-    name: Setup .NET 3.1
-    uses: actions/setup-dotnet@v1
-    with:
-      dotnet-version: 3.1.x
+  setup-verlite: &setup-verlite
+      name: Setup Verlite
+      run: |
+        verlite_version="$(grep '"Verlite\.MsBuild"' Directory.Build.props | LC_ALL=en_US.utf8 grep -Po 'Version="\K[^"]+')"
+        dotnet tool install --global Verlite.CLI --version "$verlite_version"
+        verlite . --auto-fetch --verbosity verbatim
 
   setup-nuget: &setup-nuget
     name: Setup NuGet
@@ -83,12 +84,6 @@ definitions:
     run: dotnet nuget push 'artifacts/*.nupkg' -k ${GITHUB_TOKEN} -s github --skip-duplicate --no-symbols 1
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  run-integration-tests: &run-integration-tests
-    name: Run Integration Tests
-    run: |
-      chmod +x ./tests/IntegrationTests/run.sh
-      ./tests/IntegrationTests/run.sh
 
   empty: "hi" # fixes the yml parser from messing the last value up
 

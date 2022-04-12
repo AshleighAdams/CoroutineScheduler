@@ -21,26 +21,26 @@ jobs:
       with:
         fetch-depth: '0'
 
-    - name: Setup .NET 5
+    - name: Setup .NET 6
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: 5.0.x
+        dotnet-version: 6.0.x
 
     - name: Setup NuGet
       run: |
         dotnet nuget update source github --store-password-in-clear-text --username AshleighAdams --password ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         dotnet nuget enable source github
 
-
-    - name: Setup MinVer
+    - name: Setup Verlite
       run: |
-        git fetch --tags --force
-        git checkout "${GITHUB_REF#refs/*/}"
-        dotnet tool install --global minver-cli --version 2.5.0
+        verlite_version="$(grep '"Verlite\.MsBuild"' Directory.Build.props | LC_ALL=en_US.utf8 grep -Po 'Version="\K[^"]+')"
+        dotnet tool install --global Verlite.CLI --version "$verlite_version"
+        verlite . --auto-fetch --verbosity verbatim
+
 
     - name: Verify Tag
       run: |
-        [[ "v$(minver --tag-prefix=v)" == "${GITHUB_REF#refs/*/}" ]] # error out if the versions don't match
+        [[ "v$(verlite .)" == "${GITHUB_REF#refs/*/}" ]] # error out if the versions don't match
 
     - name: Restore
       run: dotnet restore

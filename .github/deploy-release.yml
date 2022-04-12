@@ -13,18 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - *checkout
-    - *setup-dotnet5
+    - *setup-dotnet6
     - *setup-nuget
-
-    - name: Setup MinVer
-      run: |
-        git fetch --tags --force
-        git checkout "${GITHUB_REF#refs/*/}"
-        dotnet tool install --global minver-cli --version 2.5.0
+    - *setup-verlite
 
     - name: 'Verify Tag'
       run: |
-        [[ "v$(minver --tag-prefix=v)" == "${GITHUB_REF#refs/*/}" ]] # error out if the versions don't match
+        [[ "v$(verlite .)" == "${GITHUB_REF#refs/*/}" ]] # error out if the versions don't match
 
     - *restore
     - *build
