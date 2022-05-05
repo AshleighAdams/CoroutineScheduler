@@ -6,11 +6,39 @@
 using System.Diagnostics;
 #endif
 
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
 [assembly: CLSCompliant(true)]
 
 namespace CoroutineScheduler;
+
+/// <summary>
+/// Represents the data and response for when an unhandled exception occurs.
+/// </summary>
+public class UnhandledExceptionEventArgs : EventArgs
+{
+	/// <summary>
+	/// Create an event from the exception <paramref name="ex"/>.
+	/// </summary>
+	internal UnhandledExceptionEventArgs(Exception ex)
+	{
+		Exception = ex;
+	}
+
+	/// <summary>
+	/// The exception that was caught.
+	/// </summary>
+	public Exception Exception { get; }
+	/// <summary>
+	/// Whether or not the <see cref="Task"/> returned by <see cref="Scheduler.SpawnTask(Func{Task})"/> completes the promise with an exception.
+	/// </summary>
+	public bool RethrowAsync { get; set; } = true;
+	/// <summary>
+	/// Whether or not the exception should be rethrown, resulting in an instant runtime crash.
+	/// </summary>
+	public bool Rethrow { get; set; } = true;
+}
 
 /// <summary>
 /// A manually driven scheduler suitible for tight update loops such as game frames. <br />
@@ -62,7 +90,7 @@ public sealed class Scheduler : IScheduler
 #endif
 	public Task SpawnTask(Func<Task> func)
 	{
-		TaskCompletionSource<object?> proxy = new();
+		var proxy = new TaskCompletionSource<object?>();
 		SpawnTaskInternal();
 		return proxy.Task;
 
@@ -79,12 +107,24 @@ public sealed class Scheduler : IScheduler
 			}
 			catch (Exception ex)
 			{
-				proxy.SetException(ex);
-				throw;
+				var e = new UnhandledExceptionEventArgs(ex);
+				UnhandledException?.Invoke(this, e);
+
+				if (e.RethrowAsync)
+					proxy.SetException(ex);
+				else
+					proxy.SetResult(null);
+				if (e.Rethrow)
+					throw;
 			}
 		}
 
 	}
+
+	/// <summary>
+	/// An event fired when an unhandled exception occurs within a spawned task.
+	/// </summary>
+	public event EventHandler<UnhandledExceptionEventArgs>? UnhandledException;
 
 #if !DEBUG_ASYNC
 	[DebuggerNonUserCode]
