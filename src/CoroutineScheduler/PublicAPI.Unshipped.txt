@@ -7,4 +7,11 @@ CoroutineScheduler.Scheduler
 CoroutineScheduler.Scheduler.Resume() -> void
 CoroutineScheduler.Scheduler.Scheduler() -> void
 CoroutineScheduler.Scheduler.SpawnTask(System.Func<System.Threading.Tasks.Task!>! func) -> System.Threading.Tasks.Task!
+CoroutineScheduler.Scheduler.UnhandledException -> System.EventHandler<CoroutineScheduler.UnhandledExceptionEventArgs!>?
 CoroutineScheduler.Scheduler.Yield() -> CoroutineScheduler.YieldTask
+CoroutineScheduler.UnhandledExceptionEventArgs
+CoroutineScheduler.UnhandledExceptionEventArgs.Exception.get -> System.Exception!
+CoroutineScheduler.UnhandledExceptionEventArgs.Rethrow.get -> bool
+CoroutineScheduler.UnhandledExceptionEventArgs.Rethrow.set -> void
+CoroutineScheduler.UnhandledExceptionEventArgs.RethrowAsync.get -> bool
+CoroutineScheduler.UnhandledExceptionEventArgs.RethrowAsync.set -> void

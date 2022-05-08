@@ -162,4 +162,100 @@ public class SchedulerTests
 		}
 		done.Should().BeTrue();
 	}
+
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1064:Exceptions should be public", Justification = "For test only")]
+	internal class TestException : Exception
+	{
+	}
+
+	[Fact]
+	public void InstantAsyncExceptionsFireEventHandler()
+	{
+#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
+		static async Task taskFunc() => throw new TestException();
+#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
+
+		var scheduler = new Scheduler();
+
+		var threw = false;
+		scheduler.UnhandledException += (sender, e) =>
+		{
+			threw.Should().BeFalse();
+			threw = true;
+			e.Rethrow = e.RethrowAsync = false;
+			e.Exception.Should().BeOfType<TestException>();
+		};
+
+		scheduler.SpawnTask(taskFunc);
+
+		threw.Should().BeTrue();
+	}
+
+	[Fact]
+	public void InstantSyncExceptionsFireEventHandler()
+	{
+		static Task taskFunc() => throw new TestException();
+
+		var scheduler = new Scheduler();
+
+		var threw = false;
+		scheduler.UnhandledException += (sender, e) =>
+		{
+			threw.Should().BeFalse();
+			threw = true;
+			e.Rethrow = e.RethrowAsync = false;
+			e.Exception.Should().BeOfType<TestException>();
+		};
+
+		scheduler.SpawnTask(taskFunc);
+
+		threw.Should().BeTrue();
+	}
+
+	[Fact]
+	public void DeferredAsyncExceptionsFireEventHandler()
+	{
+		var scheduler = new Scheduler();
+
+		async Task taskFunc()
+		{
+			await scheduler.Yield();
+			throw new TestException();
+		}
+
+		var threw = false;
+		scheduler.UnhandledException += (sender, e) =>
+		{
+			threw.Should().BeFalse();
+			threw = true;
+			e.Rethrow = e.RethrowAsync = false;
+			e.Exception.Should().BeOfType<TestException>();
+		};
+
+		scheduler.SpawnTask(taskFunc);
+
+		threw.Should().BeFalse();
+
+		scheduler.Resume();
+
+		threw.Should().BeTrue();
+	}
+
+	[Fact]
+	public void UnflowedExceptionsThrowOnResume()
+	{
+		var scheduler = new Scheduler();
+
+
+		var threw = false;
+		scheduler.UnhandledException += (_, _) => threw = true;
+
+		scheduler.Yield().GetAwaiter().UnsafeOnCompleted(() => throw new TestException());
+
+		threw.Should().BeFalse();
+
+		Assert.Throws<TestException>(() => scheduler.Resume());
+
+		threw.Should().BeFalse();
+	}
 }
