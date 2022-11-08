@@ -47,7 +47,7 @@
     <VerliteBuildMetadata>local</VerliteBuildMetadata>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Verlite.MsBuild" Version="2.3.0" PrivateAssets="All" />
+    <PackageReference Include="Verlite.MsBuild" Version="2.3.1" PrivateAssets="All" />
   </ItemGroup>
 
   <!-- Reproducible builds  -->
