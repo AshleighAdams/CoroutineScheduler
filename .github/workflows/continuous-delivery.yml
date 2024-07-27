@@ -81,28 +81,31 @@ jobs:
       with:
         dotnet-version: 6.x
 
-    - name: Setup Verlite
-      run: |
-        verlite_version="$(grep '"Verlite\.MsBuild"' Directory.Build.props | LC_ALL=en_US.utf8 grep -Po 'Version="\K[^"]+')"
-        dotnet tool install --global Verlite.CLI --version "$verlite_version"
-        verlite . --auto-fetch --verbosity verbatim
-
     - name: Mutation Test
       run: |
-        dotnet tool install --global dotnet-stryker --version 1.5.1 # TODO: remove the version constraint
+        dotnet tool install --global dotnet-stryker --version 3.2.0
         cd tests/UnitTests
         if [[ "$GITHUB_REF" == "refs/heads/master" ]]; then
-          dotnet stryker --reporter html --reporter dashboard --reporter progress --version master
+          dotnet stryker --reporter html --reporter dashboard --reporter progress --version master # --log-to-file
         else
-          dotnet stryker --reporter html --reporter progress
+          dotnet stryker --reporter html --reporter progress # --log-to-file
         fi
-        mkdir -p ../../artifacts
-        find StrykerOutput -name mutation-report.html -exec cp {} ../../artifacts/ \;
       env:
         STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY }}
 
+    - name: Archive mutation output
+      if: success() || failure()
+      run: |
+        cd tests/UnitTests
+        mkdir -p ../../artifacts
+        find StrykerOutput -name mutation-report.html -exec cp {} ../../artifacts/ \;
+        if [[ -d StrykerOutput ]]; then
+          mv StrykerOutput ../../artifacts/StrykerOutput
+        fi
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
+      if: success() || failure()
       with:
         name: artifacts
         path: |
