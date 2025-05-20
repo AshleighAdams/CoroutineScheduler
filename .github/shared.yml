@@ -4,15 +4,15 @@ definitions:
   default-defaults: &default-defaults
     run:
       shell: bash
-
+      
   checkout: &checkout
-    uses: actions/checkout@v2
+    uses: actions/checkout@v4
     with:
       fetch-depth: '0'
 
   setup-dotnet6: &setup-dotnet6
     name: Setup .NET 6
-    uses: actions/setup-dotnet@v1
+    uses: actions/setup-dotnet@v3
     with:
       dotnet-version: 6.0.x
 
@@ -23,10 +23,17 @@ definitions:
         dotnet tool install --global Verlite.CLI --version "$verlite_version"
         verlite . --auto-fetch --verbosity verbatim
 
+  setup-openssl: &setup-openssl
+    name: Install OpenSSL 1.1
+    if: runner.os == 'Linux'
+    run: |
+      wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+      sudo apt-get install ./libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb -f
+
   setup-nuget: &setup-nuget
     name: Setup NuGet
     run: |
-      dotnet nuget update source github --store-password-in-clear-text --username AshleighAdams --password ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+      dotnet nuget update source github --store-password-in-clear-text --username AshleighAdams --password ${{ secrets.GITHUB_TOKEN }}
       dotnet nuget enable source github
 
   restore: &restore
@@ -36,7 +43,7 @@ definitions:
   build: &build
     name: Build
     run: dotnet build --configuration Release --no-restore
-    
+
   test: &test
     name: Test
     run: dotnet test --configuration Debug --logger GitHubActions -p:CollectCoverage=true -p:CoverletOutputFormat=cobertura
@@ -44,17 +51,36 @@ definitions:
   mutation-test: &mutation-test
     name: Mutation Test
     run: |
-      dotnet tool install --global dotnet-stryker --version 1.5.1 # TODO: remove the version constraint
+      dotnet tool install --global dotnet-stryker --version 3.2.0
       cd tests/UnitTests
       if [[ "$GITHUB_REF" == "refs/heads/master" ]]; then
-        dotnet stryker --reporter html --reporter dashboard --reporter progress --version master
+        dotnet stryker --reporter html --reporter dashboard --reporter progress --version master # --log-to-file
       else
-        dotnet stryker --reporter html --reporter progress
+        dotnet stryker --reporter html --reporter progress # --log-to-file
       fi
-      mkdir -p ../../artifacts
-      find StrykerOutput -name mutation-report.html -exec cp {} ../../artifacts/ \;
     env:
       STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY }}
+
+  mutation-test-archive: &mutation-test-archive
+    name: Archive mutation output
+    if: success() || failure()
+    run: |
+      cd tests/UnitTests
+      mkdir -p ../../artifacts
+      find StrykerOutput -name mutation-report.html -exec cp {} ../../artifacts/ \;
+      if [[ -d StrykerOutput ]]; then
+        mv StrykerOutput ../../artifacts/StrykerOutput
+      fi
+
+  mutation-test-upload-artifacts: &mutation-test-upload-artifacts
+    name: Upload mutation test artifacts
+    uses: actions/upload-artifact@v4
+    if: success() || failure()
+    with:
+      name: artifacts-mutation-test
+      if-no-files-found: error
+      path:  |
+        artifacts/*
 
   publish-codecov: &publish-codecov
     name: Publish Codecov
@@ -65,19 +91,25 @@ definitions:
 
   pack: &pack
     name: Pack
-    run: dotnet pack -o artifacts --configuration Release --no-restore
-
+    run: dotnet pack -p:PackageOutputPath="$(pwd)/artifacts" --configuration Release --no-restore
+    
   upload-artifacts: &upload-artifacts
     name: Upload Artifacts
-    uses: actions/upload-artifact@v2
+    uses: actions/upload-artifact@v4
+    if: success() || failure()
     with:
       name: artifacts
+      if-no-files-found: error
       path:  |
         artifacts/*
 
   download-artifacts: &download-artifacts
     name: Download Artifacts
-    uses: actions/download-artifact@v2
+    uses: actions/download-artifact@v4
+    with:
+      path: artifacts
+      pattern: '*'
+      merge-multiple: true
 
   publish-github: &publish-github
     name: Publish Nuget GitHub

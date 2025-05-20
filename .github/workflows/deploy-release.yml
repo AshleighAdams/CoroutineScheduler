@@ -17,18 +17,18 @@ jobs:
     name: Build & Release
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: '0'
 
-    - name: Setup .NET
+    - name: Setup .NET 6
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 6.x
+        dotnet-version: 6.0.x
 
     - name: Setup NuGet
       run: |
-        dotnet nuget update source github --store-password-in-clear-text --username AshleighAdams --password ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        dotnet nuget update source github --store-password-in-clear-text --username AshleighAdams --password ${{ secrets.GITHUB_TOKEN }}
         dotnet nuget enable source github
 
     - name: Setup Verlite
@@ -53,27 +53,33 @@ jobs:
         -p:CoverletOutputFormat=cobertura
 
     - name: Pack
-      run: dotnet pack -o artifacts --configuration Release --no-restore
+      run: dotnet pack -p:PackageOutputPath="$(pwd)/artifacts" --configuration Release
+        --no-restore
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
       with:
         name: artifacts
+        if-no-files-found: error
         path: |
           artifacts/*
 
-    - name: Upload Release
+
+    - name: Create Release
       run: |
         set -x
         tag="${GITHUB_REF#refs/*/}"
-        files=()
+        options=()
+
+        options+=("-m" "") # leave the title and body unchanged
 
         IFS=$'\n';
         for asset in $(find ./artifacts -name "*.nupkg"); do
-          files+=("$asset")
+          options+=("-a" "$asset")
         done
 
-        gh release upload "$tag" "${files[@]}"
+        hub release edit "${options[@]}" "$tag"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

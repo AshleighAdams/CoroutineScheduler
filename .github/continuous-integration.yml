@@ -23,6 +23,7 @@ jobs:
     steps:
     - *checkout
     - *setup-dotnet6
+    - *setup-openssl
     - *restore
     - *build
     - *test
@@ -36,5 +37,7 @@ jobs:
     steps:
     - *checkout
     - *setup-dotnet6
+    - *setup-openssl
     - *mutation-test
-    - *upload-artifacts
+    - *mutation-test-archive
+    - *mutation-test-upload-artifacts

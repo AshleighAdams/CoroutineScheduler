@@ -24,6 +24,7 @@ jobs:
     - *checkout
     - *setup-dotnet6
     - *setup-verlite
+    - *setup-openssl
     - *restore
     - *build
     - *test
@@ -38,6 +39,7 @@ jobs:
     - *checkout
     - *setup-dotnet6
     - *setup-verlite
+    - *setup-openssl
     - *mutation-test
     - *upload-artifacts
   publish:
@@ -47,6 +49,7 @@ jobs:
     steps:
     - *checkout
     - *setup-dotnet6
+    - *setup-openssl
     - *setup-nuget
     - *download-artifacts
     - *publish-github

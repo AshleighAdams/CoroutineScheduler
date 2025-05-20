@@ -26,14 +26,20 @@ jobs:
     name: Build & Test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: '0'
 
-    - name: Setup .NET
+    - name: Setup .NET 6
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 6.x
+        dotnet-version: 6.0.x
+
+    - name: Install OpenSSL 1.1
+      if: runner.os == 'Linux'
+      run: |
+        wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+        sudo apt-get install ./libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb -f
 
     - name: Restore
       run: dotnet restore
@@ -46,7 +52,8 @@ jobs:
         -p:CoverletOutputFormat=cobertura
 
     - name: Pack
-      run: dotnet pack -o artifacts --configuration Release --no-restore
+      run: dotnet pack -p:PackageOutputPath="$(pwd)/artifacts" --configuration Release
+        --no-restore
 
     - name: Publish Codecov
       uses: codecov/codecov-action@v2
@@ -55,9 +62,11 @@ jobs:
         files: ./tests/UnitTests/coverage.cobertura.xml
 
     - name: Upload Artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
+      if: success() || failure()
       with:
         name: artifacts
+        if-no-files-found: error
         path: |
           artifacts/*
 
@@ -66,14 +75,20 @@ jobs:
     needs: build-and-test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         fetch-depth: '0'
 
-    - name: Setup .NET
+    - name: Setup .NET 6
       uses: actions/setup-dotnet@v3
       with:
-        dotnet-version: 6.x
+        dotnet-version: 6.0.x
+
+    - name: Install OpenSSL 1.1
+      if: runner.os == 'Linux'
+      run: |
+        wget http://security.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb
+        sudo apt-get install ./libssl1.1_1.1.1f-1ubuntu2.24_amd64.deb -f
 
     - name: Mutation Test
       run: |
@@ -97,11 +112,12 @@ jobs:
           mv StrykerOutput ../../artifacts/StrykerOutput
         fi
 
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v2
+    - name: Upload mutation test artifacts
+      uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: artifacts
+        name: artifacts-mutation-test
+        if-no-files-found: error
         path: |
           artifacts/*
 

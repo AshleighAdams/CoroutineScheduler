@@ -42,23 +42,53 @@ namespace CoroutineScheduler;
 /// </summary>
 public class AsyncSignal
 {
-	private readonly ConcurrentQueue<WorkItem> workQueue = new();
+	private volatile List<RegisteredWorkItem> workQueueFront = new();
+	private volatile List<RegisteredWorkItem> workQueueBack = new();
 	private volatile int currentToken;
-	private readonly object tokenLock = new object();
+	private readonly object workQueueFrontLock = new();
+	private readonly ConcurrentBag<RegisteredWorkItem> workItemPool = new();
 
 	internal struct WorkItem
 	{
 		public Action Continuation { get; set; }
 		public ExecutionContext? Context { get; set; }
+
+		private static ContextCallback? Runner { get; set; }
+		public void Invoke()
+		{
+			// cache this allocation
+			[DebuggerNonUserCode]
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			static void executionContextRunner(object obj) => (obj as Action)!();
+			Runner ??= executionContextRunner!;
+
+			if (Context is null)
+				Continuation();
+			else
+				ExecutionContext.Run(Context, Runner, Continuation);
+		}
+	}
+
+	internal class RegisteredWorkItem
+	{
+		public WorkItem Item { get; set; }
+		public CancellationTokenRegistration CancellationTokenRegistration { get; set; }
+		private volatile int completed;
+
+		public bool TryComplete()
+		{
+			int was = Interlocked.Exchange(ref completed, 1);
+			return was == 0;
+		}
 	}
 
 	/// <summary>
 	/// Wait for the signal
 	/// </summary>
 	/// <returns>An awaitable that completes when <see cref="NotifyAll()"/> is called</returns>
-	public AsyncSignalTask Wait()
+	public AsyncSignalTask Wait(CancellationToken ct = default)
 	{
-		return new(this, currentToken);
+		return new(this, currentToken, ct);
 	}
 
 	/// <summary>
@@ -71,21 +101,24 @@ public class AsyncSignal
 #endif
 	public void NotifyAll()
 	{
-		int alreadyQueuedCount;
-		lock (tokenLock)
+		lock (workQueueFrontLock)
 		{
 			Interlocked.Increment(ref currentToken);
-			alreadyQueuedCount = workQueue.Count;
+			(workQueueFront, workQueueBack) = (workQueueBack, workQueueFront);
 		}
 
-		while (alreadyQueuedCount > 0)
+		foreach (var workItem in workQueueBack)
 		{
-			if (!workQueue.TryDequeue(out var workItem))
-				throw new InternalReleaseException("Failed to dequeue the next continuation.");
+			if (!workItem.TryComplete())
+				throw new InvalidOperationException("Dequeued work item somehow completed in back queue");
 
-			alreadyQueuedCount--;
-			Execute(workItem);
+			workItem.CancellationTokenRegistration.Dispose();
+			workItem.Item.Invoke();
+			workItem.Item = default;
+			
+			workItemPool.Add(workItem);
 		}
+		workQueueBack.Clear();
 	}
 
 	internal bool IsTokenCompleted(int token)
@@ -93,49 +126,68 @@ public class AsyncSignal
 		return currentToken != token;
 	}
 
-	internal void AddContinuation(int token, WorkItem item)
+	internal void AddContinuation(int token, WorkItem item, CancellationToken ct)
 	{
-		lock (tokenLock)
+		lock (workQueueFrontLock)
 		{
 			if (token == currentToken)
 			{
-				workQueue.Enqueue(item);
+				if (!workItemPool.TryTake(out var regItem))
+					regItem = new();
+
+				regItem.Item = item;
+				workQueueFront.Add(regItem);
+				if (ct.CanBeCanceled)
+					regItem.CancellationTokenRegistration = ct.Register(TokenCancelled, regItem, false);
 				return;
 			}
 		}
-		Execute(item);
+
+		item.Invoke();
 	}
 
-	private static ContextCallback? Runner { get; set; }
-	private static void Execute(WorkItem item)
+	internal void TokenCancelled(object objItem)
 	{
-		// cache this allocation
-		[DebuggerNonUserCode]
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
-		static void executionContextRunner(object obj) => (obj as Action)!();
-		Runner ??= executionContextRunner!;
+		if (objItem is not RegisteredWorkItem item)
+			throw new InvalidOperationException($"Unexpected item type");
 
-		if (item.Context is null)
-			item.Continuation();
-		else
-			ExecutionContext.Run(item.Context, Runner, item.Continuation);
+		bool removedItem;
+		lock (workQueueFrontLock)
+		{
+			removedItem = workQueueFront.Remove(item);
+		}
+
+		if (!removedItem)
+			return;
+
+		if (!item.TryComplete())
+			return;
+		
+		var ret = item.Item;
+		item.Item = default;
+		workItemPool.Add(item);
+
+		ret.Invoke();
 	}
 }
 
 /// <summary>
 /// An awaitable that posts to the signal. Contains a token to resolve race conditions
 /// </summary>
-public readonly record struct AsyncSignalTask
+public class AsyncSignalTask
 {
 	private AsyncSignal Signal { get; }
 	private int Token { get; }
+	private CancellationToken Ct { get; }
 
 	internal AsyncSignalTask(
 		AsyncSignal signal,
-		int token)
+		int token,
+		CancellationToken ct)
 	{
 		Signal = signal;
 		Token = token;
+		Ct = ct;
 	}
 
 	/// <summary>
@@ -143,7 +195,7 @@ public readonly record struct AsyncSignalTask
 	/// </summary>
 	public AsyncSignalAwaiter GetAwaiter()
 	{
-		return new AsyncSignalAwaiter(Signal, Token);
+		return new AsyncSignalAwaiter(Signal, Token, Ct);
 	}
 }
 
@@ -154,21 +206,28 @@ public readonly record struct AsyncSignalAwaiter : ICriticalNotifyCompletion
 {
 	private AsyncSignal Signal { get; }
 	private int Token { get; }
+	private CancellationToken Ct { get; }
 
-	internal AsyncSignalAwaiter(AsyncSignal signal, int token)
+	internal AsyncSignalAwaiter(AsyncSignal signal, int token, CancellationToken ct)
 	{
 		Signal = signal;
 		Token = token;
+		Ct = ct;
 	}
 
 	/// <summary>
 	/// Whether or not the awaitable has completed
 	/// </summary>
-	public bool IsCompleted => Signal.IsTokenCompleted(Token);
+	public bool IsCompleted => Signal.IsTokenCompleted(Token) || Ct.IsCancellationRequested;
 	/// <summary>
 	/// No op
 	/// </summary>
-	public void GetResult() { }
+	public void GetResult()
+	{
+		Ct.ThrowIfCancellationRequested();
+	}
+
+	private CancellationTokenRegistration Registration { get; }
 
 #if !DEBUG_ASYNC
 	[DebuggerNonUserCode]
@@ -181,7 +240,8 @@ public readonly record struct AsyncSignalAwaiter : ICriticalNotifyCompletion
 			{
 				Continuation = continuation,
 				Context = ExecutionContext.Capture(),
-			});
+			},
+			Ct);
 	}
 #if !DEBUG_ASYNC
 	[DebuggerNonUserCode]
@@ -194,6 +254,7 @@ public readonly record struct AsyncSignalAwaiter : ICriticalNotifyCompletion
 			{
 				Continuation = continuation,
 				Context = null,
-			});
+			},
+			Ct);
 	}
 }
