@@ -2,15 +2,13 @@
 CoroutineScheduler.AsyncSignal
 CoroutineScheduler.AsyncSignal.AsyncSignal() -> void
 CoroutineScheduler.AsyncSignal.NotifyAll() -> void
-CoroutineScheduler.AsyncSignal.Wait() -> CoroutineScheduler.AsyncSignalTask
-CoroutineScheduler.AsyncSignalAwaitable
-CoroutineScheduler.AsyncSignalAwaitable.AsyncSignalAwaitable() -> void
-CoroutineScheduler.AsyncSignalAwaitable.GetAwaiter() -> CoroutineScheduler.AsyncSignalAwaiter
-CoroutineScheduler.AsyncSignalAwaitable.IsCompleted.get -> bool
+CoroutineScheduler.AsyncSignal.Wait(System.Threading.CancellationToken ct = default(System.Threading.CancellationToken)) -> CoroutineScheduler.AsyncSignalTask!
 CoroutineScheduler.AsyncSignalAwaiter
 CoroutineScheduler.AsyncSignalAwaiter.AsyncSignalAwaiter() -> void
 CoroutineScheduler.AsyncSignalAwaiter.GetResult() -> void
 CoroutineScheduler.AsyncSignalAwaiter.IsCompleted.get -> bool
+CoroutineScheduler.AsyncSignalTask
+CoroutineScheduler.AsyncSignalTask.GetAwaiter() -> CoroutineScheduler.AsyncSignalAwaiter
 CoroutineScheduler.InternalReleaseException
 CoroutineScheduler.InternalReleaseException.InternalReleaseException(string! message) -> void
 CoroutineScheduler.InternalReleaseException.InternalReleaseException(string! message, System.Exception! innerException) -> void
