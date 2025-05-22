@@ -30,6 +30,7 @@
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
     <Copyright>Copyright 2022 Ashleigh Adams</Copyright>
     <PackageIcon>images/packageicon.png</PackageIcon>
+    <RepositoryUrl>https://github.com/AshleighAdams/CoroutineScheduler</RepositoryUrl>
   </PropertyGroup>
   
   <ItemGroup>
