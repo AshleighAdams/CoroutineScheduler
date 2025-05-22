@@ -23,6 +23,12 @@ public interface IScheduler
 	/// </summary>
 	/// <returns>An awaitable whose awaiter completes at the mercy of this scheduler.</returns>
 	YieldTask Yield();
+
+	/// <summary>
+	/// Marshal to this scheduler.<br/>
+	/// </summary>
+	/// <returns>An awaitable whose awaiter completes at the mercy of this scheduler for the purposes of marshalling in some way, such as between threads.</returns>
+	YieldTask Marshal();
 }
 
 /// <summary>
@@ -36,7 +42,6 @@ public record struct YieldTask
 	/// <summary>
 	/// A struct container to provide the compiler duck-typeing so an <see cref="IYieldAwaiter"/> can be <c>await</c>ed.
 	/// </summary>
-	/// <param name="awaiter"></param>
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	[DebuggerNonUserCode]
 	public YieldTask(IYieldAwaiter awaiter)
