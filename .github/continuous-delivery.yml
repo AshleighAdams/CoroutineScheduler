@@ -41,7 +41,8 @@ jobs:
     - *setup-verlite
     - *setup-openssl
     - *mutation-test
-    - *upload-artifacts
+    - *mutation-test-archive
+    - *mutation-test-upload-artifacts
   publish:
     name: 'Publish'
     needs: build-and-test

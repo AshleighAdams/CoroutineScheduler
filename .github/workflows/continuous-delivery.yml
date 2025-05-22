@@ -114,11 +114,21 @@ jobs:
       env:
         STRYKER_DASHBOARD_API_KEY: ${{ secrets.STRYKER_DASHBOARD_API_KEY }}
 
-    - name: Upload Artifacts
+    - name: Archive mutation output
+      if: success() || failure()
+      run: |
+        cd tests/UnitTests
+        mkdir -p ../../artifacts
+        find StrykerOutput -name mutation-report.html -exec cp {} ../../artifacts/ \;
+        if [[ -d StrykerOutput ]]; then
+          mv StrykerOutput ../../artifacts/StrykerOutput
+        fi
+
+    - name: Upload mutation test artifacts
       uses: actions/upload-artifact@v4
       if: success() || failure()
       with:
-        name: artifacts
+        name: artifacts-mutation-test
         if-no-files-found: error
         path: |
           artifacts/*
