@@ -1,5 +1,6 @@
 #nullable enable
 CoroutineScheduler.IScheduler
+CoroutineScheduler.IScheduler.Marshal() -> CoroutineScheduler.YieldTask
 CoroutineScheduler.IScheduler.SpawnTask(System.Func<System.Threading.Tasks.Task!>! func) -> System.Threading.Tasks.Task!
 CoroutineScheduler.IScheduler.Yield() -> CoroutineScheduler.YieldTask
 CoroutineScheduler.IYieldAwaiter

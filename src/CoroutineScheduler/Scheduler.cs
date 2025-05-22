@@ -1,11 +1,11 @@
 #if DEBUG
 #define DEBUG_ASYNC
 #endif
-
 #if !DEBUG_ASYNC
 using System.Diagnostics;
 #endif
 
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 
@@ -46,16 +46,24 @@ public class UnhandledExceptionEventArgs : EventArgs
 /// </summary>
 public sealed class Scheduler : IScheduler
 {
-	private AsyncManualResetEvent Awaiter { get; } = new AsyncManualResetEvent();
 	private SchedulerSynchronizationContext SyncContext { get; }
+	private YieldAwaiter NormalAwaiter { get; }
+	private YieldAwaiter MarshalAwaiter { get; }
 
 	/// <summary>
 	/// Create a new scheduler
 	/// </summary>
 	public Scheduler()
 	{
-		SyncContext = new(SyncronizationContextPost);
+		SyncContext = new(PostContinuation);
+		NormalAwaiter = new(this, true);
+		MarshalAwaiter = new(this, false);
 	}
+
+	private ContextCallback? Runner { get; set; }
+
+	private int? ResumingOnThread { get; set; }
+	private bool RequiresMarshalling => !ResumingOnThread.HasValue || ResumingOnThread.Value != Thread.CurrentThread.ManagedThreadId;
 
 	/// <summary>
 	/// Resume any tasks that are at the point of invocation are currently awaiting `Yield()`, and <br />
@@ -69,10 +77,41 @@ public sealed class Scheduler : IScheduler
 	{
 		var original = SynchronizationContext.Current;
 		SynchronizationContext.SetSynchronizationContext(SyncContext);
+		ResumingOnThread = Thread.CurrentThread.ManagedThreadId;
 		{
-			Awaiter.Release();
+			// cache this allocation
+			[DebuggerNonUserCode]
+			[MethodImpl(MethodImplOptions.AggressiveInlining)]
+			static void executionContextRunner(object obj) => (obj as Action)!();
+			Runner ??= executionContextRunner!;
+
+			ReleaseImplicit();
+
+			int alreadyQueuedCount = explicitQueue.Count;
+			while (alreadyQueuedCount > 0)
+			{
+				if (!explicitQueue.TryDequeue(out var workItem))
+					throw new InternalReleaseException("Failed to dequeue the next continuation.");
+
+				alreadyQueuedCount--;
+
+				if (workItem.Context is null)
+					workItem.Continuation();
+				else
+					ExecutionContext.Run(workItem.Context, Runner, workItem.Continuation);
+
+				ReleaseImplicit();
+			}
 		}
+		ResumingOnThread = null;
 		SynchronizationContext.SetSynchronizationContext(original);
+	}
+
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	private void ReleaseImplicit()
+	{
+		while (implicitQueue.TryDequeue(out var workItem))
+			workItem.Continuation(workItem.Context);
 	}
 
 	/// <summary>
@@ -81,7 +120,16 @@ public sealed class Scheduler : IScheduler
 	[MethodImpl(MethodImplOptions.AggressiveInlining)]
 	public YieldTask Yield()
 	{
-		return new(Awaiter);
+		return new(NormalAwaiter);
+	}
+
+	/// <summary>
+	/// Wait until <see cref="Resume()"/> is next invoked.
+	/// </summary>
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+	public YieldTask Marshal()
+	{
+		return new(MarshalAwaiter);
 	}
 
 	/// <inheritdoc/>
@@ -129,8 +177,75 @@ public sealed class Scheduler : IScheduler
 #if !DEBUG_ASYNC
 	[DebuggerNonUserCode]
 #endif
-	private void SyncronizationContextPost(SendOrPostCallback cb, object? state)
+	private void PostContinuation(SendOrPostCallback cb, object? state)
 	{
-		Awaiter.Post(cb, state);
+		if (RequiresMarshalling)
+			implicitQueue.Enqueue(new() { Continuation = cb, Context = state });
+		else
+			cb(state);
+	}
+
+#if !DEBUG_ASYNC
+	[DebuggerNonUserCode]
+	[MethodImpl(MethodImplOptions.AggressiveInlining)]
+#endif
+	private void Yield(Action action, ExecutionContext? ctx)
+	{
+		explicitQueue.Enqueue(new() { Continuation = action, Context = ctx });
+	}
+
+	private struct PostedWorkItem
+	{
+		public SendOrPostCallback Continuation { get; set; }
+		public object? Context { get; set; }
+	}
+
+	private struct YieldedWorkItem
+	{
+		public Action Continuation { get; set; }
+		public ExecutionContext? Context { get; set; }
+	}
+
+	private readonly ConcurrentQueue<YieldedWorkItem> explicitQueue = new();
+	private readonly ConcurrentQueue<PostedWorkItem> implicitQueue = new();
+
+	private class YieldAwaiter : IYieldAwaiter
+	{
+		public Scheduler Self { get; }
+		public bool ForceYield { get; }
+
+		public YieldAwaiter(Scheduler self, bool forceYield)
+		{
+			Self = self;
+			ForceYield = forceYield;
+		}
+
+		bool IYieldAwaiter.IsCompleted => ForceYield switch
+		{
+			true => false,
+			false => !Self.RequiresMarshalling,
+		};
+#if !DEBUG_ASYNC
+		[DebuggerNonUserCode]
+#endif
+		void INotifyCompletion.OnCompleted(Action continuation)
+		{
+			Self.Yield(continuation, ExecutionContext.Capture());
+		}
+#if !DEBUG_ASYNC
+		[DebuggerNonUserCode]
+#endif
+		void ICriticalNotifyCompletion.UnsafeOnCompleted(Action continuation)
+		{
+			Self.Yield(continuation, null);
+		}
+
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+#if !DEBUG_ASYNC
+		[DebuggerNonUserCode]
+#endif
+		void IYieldAwaiter.GetResult()
+		{
+		}
 	}
 }

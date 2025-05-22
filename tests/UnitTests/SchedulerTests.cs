@@ -7,6 +7,7 @@ using FluentAssertions;
 using CoroutineScheduler;
 
 using Xunit;
+using System.Threading;
 
 [assembly: CLSCompliant(true)]
 
@@ -257,5 +258,145 @@ public class SchedulerTests
 		Assert.Throws<TestException>(() => scheduler.Resume());
 
 		threw.Should().BeFalse();
+	}
+
+	[Fact]
+	public void MarshalDoesntYieldWhenSameThread()
+	{
+		var scheduler = new Scheduler();
+
+		int x = 0;
+		async Task taskFunc()
+		{
+			x = 10;
+			await scheduler.Yield();
+			x = 20;
+			await scheduler.Marshal();
+			x = 30;
+		}
+		;
+
+		scheduler.SpawnTask(taskFunc);
+		x.Should().Be(10);
+		scheduler.Resume();
+		x.Should().Be(30);
+	}
+
+
+	[Fact]
+	public void YieldDoesntPostToSyncContext()
+	{
+		int factThreadId = Thread.CurrentThread.ManagedThreadId;
+
+		var scheduler = new Scheduler();
+		using var resetEvent = new AutoResetEvent(false);
+		using var resetEventReply = new AutoResetEvent(false);
+		var tcs = new TaskCompletionSource<int>();
+		int thread1Id = 0;
+
+		var thread1 = new Thread(() =>
+		{
+			thread1Id = Thread.CurrentThread.ManagedThreadId;
+			resetEvent.WaitOne();
+			scheduler.Resume();
+		});
+		thread1.Start();
+
+		async Task test()
+		{
+			Thread.CurrentThread.ManagedThreadId.Should().Be(factThreadId);
+
+			await scheduler.Yield();
+
+			Thread.CurrentThread.ManagedThreadId.Should().Be(thread1Id);
+
+			resetEventReply.Set();
+		}
+
+		var task = scheduler.SpawnTask(test);
+
+		resetEvent.Set();
+		resetEventReply.WaitOne(TimeSpan.FromSeconds(1));
+	}
+
+	[Fact]
+	public void CanMarshalToThread()
+	{
+		int factThreadId = Thread.CurrentThread.ManagedThreadId;
+
+		var scheduler = new Scheduler();
+		using var resetEvent = new AutoResetEvent(false);
+		var tcs = new TaskCompletionSource<int>();
+		int thread1Id = 0;
+
+		var thread1 = new Thread(() =>
+		{
+			thread1Id = Thread.CurrentThread.ManagedThreadId;
+			resetEvent.WaitOne();
+			tcs.TrySetResult(10);
+		});
+		thread1.Start();
+
+		async Task test()
+		{
+			Thread.CurrentThread.ManagedThreadId.Should().Be(factThreadId);
+
+			var result = await tcs.Task
+				.ConfigureAwait(false); // this is required else we will automatically marshal back to the scheduler
+			result.Should().Be(10);
+
+			Thread.CurrentThread.ManagedThreadId.Should().Be(thread1Id);
+
+			await scheduler.Marshal();
+
+			Thread.CurrentThread.ManagedThreadId.Should().Be(factThreadId);
+		}
+
+		var task = scheduler.SpawnTask(test);
+
+		resetEvent.Set();
+
+		while (!task.IsCompleted)
+			scheduler.Resume();
+#pragma warning disable xUnit1031 // Do not use blocking task operations in test method
+		task.GetAwaiter().GetResult();
+#pragma warning restore xUnit1031
+	}
+
+	[Fact]
+	public void ImplicitlyMarshalsToScheduler()
+	{
+		int factThreadId = Thread.CurrentThread.ManagedThreadId;
+
+		var scheduler = new Scheduler();
+		using var resetEvent = new AutoResetEvent(false);
+		var tcs = new TaskCompletionSource<int>();
+
+		var thread1 = new Thread(() =>
+		{
+			resetEvent.WaitOne();
+			tcs.TrySetResult(10);
+		});
+		thread1.Start();
+
+		async Task test()
+		{
+			Thread.CurrentThread.ManagedThreadId.Should().Be(factThreadId);
+
+			var result = await tcs.Task; // no configure await false
+			result.Should().Be(10);
+
+			Thread.CurrentThread.ManagedThreadId.Should().Be(factThreadId);
+		}
+
+		var task = scheduler.SpawnTask(test);
+
+		resetEvent.Set();
+
+		while (!task.IsCompleted)
+			scheduler.Resume();
+#pragma warning disable xUnit1031 // Do not use blocking task operations in test method
+		task.GetAwaiter().GetResult();
+#pragma warning restore xUnit1031
 	}
 }
