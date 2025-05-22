@@ -63,7 +63,7 @@ public sealed class Scheduler : IScheduler
 	private ContextCallback? Runner { get; set; }
 
 	private int? ResumingOnThread { get; set; }
-	private bool RequiresMarshalling => !ResumingOnThread.HasValue || ResumingOnThread.Value != Thread.CurrentThread.ManagedThreadId;
+	private bool RequiresMarshalling => ResumingOnThread is null || ResumingOnThread.Value != Thread.CurrentThread.ManagedThreadId;
 
 	/// <summary>
 	/// Resume any tasks that are at the point of invocation are currently awaiting `Yield()`, and <br />
