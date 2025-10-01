@@ -57,7 +57,7 @@
 
   <!-- Reproducible builds  -->
   <ItemGroup>
-    <PackageReference Include="DotNet.ReproducibleBuilds" Version="1.2.25" PrivateAssets="All" />
+    <PackageReference Include="DotNet.ReproducibleBuilds" Version="1.2.39" PrivateAssets="All" />
   </ItemGroup>
 
   <!-- Code analyizers: https://github.com/dotnet/roslyn-analyzers -->
