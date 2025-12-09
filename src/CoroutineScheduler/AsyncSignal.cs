@@ -71,9 +71,16 @@ public class AsyncSignal
 
 	internal class RegisteredWorkItem
 	{
-		public WorkItem Item { get; set; }
+		public WorkItem Item { get; private set; }
 		public CancellationTokenRegistration CancellationTokenRegistration { get; set; }
 		private volatile int completed;
+
+		public void Reset(WorkItem item)
+		{
+			Item = item;
+			completed = 0;
+			CancellationTokenRegistration = default;
+		}
 
 		public bool TryComplete()
 		{
@@ -114,7 +121,7 @@ public class AsyncSignal
 
 			workItem.CancellationTokenRegistration.Dispose();
 			workItem.Item.Invoke();
-			workItem.Item = default;
+			workItem.Reset(default);
 			
 			workItemPool.Add(workItem);
 		}
@@ -135,8 +142,9 @@ public class AsyncSignal
 				if (!workItemPool.TryTake(out var regItem))
 					regItem = new();
 
-				regItem.Item = item;
+				regItem.Reset(item);
 				workQueueFront.Add(regItem);
+
 				if (ct.CanBeCanceled)
 					regItem.CancellationTokenRegistration = ct.Register(TokenCancelled, regItem, false);
 				return;
@@ -164,7 +172,8 @@ public class AsyncSignal
 			return;
 		
 		var ret = item.Item;
-		item.Item = default;
+		item.Reset(default);
+
 		workItemPool.Add(item);
 
 		ret.Invoke();
