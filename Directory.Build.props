@@ -52,7 +52,7 @@
     <VerliteMinimumVersion>0.4.0</VerliteMinimumVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Verlite.MsBuild" Version="2.6.0" PrivateAssets="All" />
+    <PackageReference Include="Verlite.MsBuild" Version="2.7.0" PrivateAssets="All" />
   </ItemGroup>
 
   <!-- Reproducible builds  -->
